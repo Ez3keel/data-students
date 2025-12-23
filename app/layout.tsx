@@ -10,7 +10,6 @@ const _geistMono = Geist_Mono({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "Consulta Acadêmica - Sistema de Consulta de Alunos",
   description: "Sistema de consulta de informações acadêmicas por CPF",
-  generator: "v0.app",
   icons: {
     icon: [
       {

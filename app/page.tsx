@@ -1,11 +1,17 @@
 "use client"
 
 import type React from "react"
-
 import { useState } from "react"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Search, GraduationCap, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -26,6 +32,7 @@ export default function ConsultaAcademica() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
 
+  // ===================== CPF =====================
   const formatCPF = (value: string) => {
     const numbers = value.replace(/\D/g, "")
     if (numbers.length <= 11) {
@@ -37,74 +44,42 @@ export default function ConsultaAcademica() {
     return value
   }
 
+  const removeCPFMask = (value: string) => value.replace(/\D/g, "")
+
   const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const formatted = formatCPF(e.target.value)
-    setCpf(formatted)
+    setCpf(formatCPF(e.target.value))
   }
 
-  const removeCPFMask = (cpf: string) => {
-    return cpf.replace(/\D/g, "")
-  }
-
+  // ===================== API =====================
   const searchStudent = async () => {
     setLoading(true)
     setError("")
     setStudentData(null)
 
     try {
-      const csvUrl =
-        "https://docs.google.com/spreadsheets/d/e/2PACX-1vQpj4E2zV8skZDC5hsMR36SnHtJVEtayD8r7FOOiYL27EKlhmHPnmvcDkQ7M0WUF6lPxgims0OAylNf/pub?output=csv"
+      const response = await fetch( `${process.env.NEXT_PUBLIC_API_URL}/consulta`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          
+          cpf: removeCPFMask(cpf),
+        }),
+      })
 
-      console.log("[v0] Buscando dados do CSV...")
-      const response = await fetch(csvUrl)
-      const csvText = await response.text()
+      const data = await response.json()
 
-      console.log("[v0] CSV recebido (primeiras 500 chars):", csvText.substring(0, 500))
-
-      // Parse CSV - Detectar delimitador automaticamente
-      const lines = csvText.split("\n").filter((line) => line.trim())
-      console.log("[v0] Total de linhas:", lines.length)
-      console.log("[v0] Primeira linha (header):", lines[0])
-
-      const firstLine = lines[0]
-      const delimiter = firstLine.includes("\t") ? "\t" : ","
-      console.log("[v0] Delimitador detectado:", delimiter === "\t" ? "TAB" : "VÍRGULA")
-
-      const headers = firstLine.split(delimiter).map((h) => h.trim())
-      console.log("[v0] Headers:", headers)
-
-      const cpfToSearch = removeCPFMask(cpf)
-      console.log("[v0] CPF procurado (sem máscara):", cpfToSearch)
-
-      // Find student data
-      for (let i = 1; i < lines.length; i++) {
-        const values = lines[i].split(delimiter).map((v) => v.trim())
-        const rowCPF = removeCPFMask(values[0] || "")
-
-        console.log(`[v0] Linha ${i}: CPF = "${rowCPF}", valores:`, values)
-
-        if (rowCPF === cpfToSearch) {
-          console.log("[v0] CPF encontrado!")
-          const data: StudentData = {
-            cpf: values[0] || "",
-            campus: values[1] || "",
-            ra: values[2] || "",
-            nome_aluno: values[3] || "",
-            nome_disciplina: values[4] || "",
-            horario: values[5] || "",
-            local: values[6] || "",
-          }
-          setStudentData(data)
-          setLoading(false)
-          return
-        }
+      if (!response.ok) {
+        setError(data.error || "Erro ao consultar CPF")
+        return
       }
 
-      console.log("[v0] CPF não encontrado após verificar todas as linhas")
-      setError("CPF não encontrado. Verifique e tente novamente.")
+      setStudentData(data)
+
     } catch (err) {
-      console.error("[v0] Erro ao buscar dados:", err)
-      setError("Erro ao buscar dados. Tente novamente.")
+      console.error(err)
+      setError("Erro ao conectar com o servidor.")
     } finally {
       setLoading(false)
     }
@@ -112,13 +87,16 @@ export default function ConsultaAcademica() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (removeCPFMask(cpf).length === 11) {
-      searchStudent()
-    } else {
+
+    if (removeCPFMask(cpf).length !== 11) {
       setError("Por favor, digite um CPF válido.")
+      return
     }
+
+    searchStudent()
   }
 
+  // ===================== UI =====================
   return (
     <div className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 md:py-16">
@@ -130,15 +108,19 @@ export default function ConsultaAcademica() {
                 <GraduationCap className="h-10 w-10 text-primary-foreground" />
               </div>
             </div>
-            <h1 className="mb-2 font-sans text-4xl font-bold text-balance">Consulta Acadêmica</h1>
-            <p className="text-muted-foreground text-lg">Digite seu CPF para visualizar suas informações</p>
+            <h1 className="mb-2 text-4xl font-bold">Consulta Acadêmica</h1>
+            <p className="text-muted-foreground text-lg">
+              Digite seu CPF para visualizar suas informações
+            </p>
           </div>
 
-          {/* Search Form */}
+          {/* Form */}
           <Card className="mb-6 shadow-lg">
             <CardHeader>
               <CardTitle>Buscar Informações</CardTitle>
-              <CardDescription>Informe o CPF cadastrado para consultar seus dados</CardDescription>
+              <CardDescription>
+                Informe o CPF cadastrado para consultar seus dados
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -152,7 +134,6 @@ export default function ConsultaAcademica() {
                       value={cpf}
                       onChange={handleCPFChange}
                       maxLength={14}
-                      className="flex-1"
                     />
                     <Button type="submit" disabled={loading} className="gap-2">
                       <Search className="h-4 w-4" />
@@ -164,7 +145,7 @@ export default function ConsultaAcademica() {
             </CardContent>
           </Card>
 
-          {/* Error Message */}
+          {/* Error */}
           {error && (
             <Alert variant="destructive" className="mb-6">
               <AlertCircle className="h-4 w-4" />
@@ -172,59 +153,47 @@ export default function ConsultaAcademica() {
             </Alert>
           )}
 
-          {/* Student Data */}
+          {/* Result */}
           {studentData && (
             <Card className="shadow-lg">
               <CardHeader className="bg-primary text-primary-foreground">
                 <CardTitle className="text-2xl">Dados do Aluno</CardTitle>
               </CardHeader>
-              <CardContent className="p-6">
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="space-y-1">
-                    <Label className="text-muted-foreground text-sm">Nome</Label>
-                    <p className="font-semibold text-lg">{studentData.nome_aluno}</p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-muted-foreground text-sm">CPF</Label>
-                    <p className="font-mono">{studentData.cpf}</p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-muted-foreground text-sm">RA</Label>
-                    <p className="font-mono">{studentData.ra || "Não informado"}</p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-muted-foreground text-sm">Campus</Label>
-                    <p className="font-semibold">{studentData.campus}</p>
-                  </div>
-
-                  <div className="col-span-2 space-y-1">
-                    <Label className="text-muted-foreground text-sm">Disciplina</Label>
-                    <p className="font-semibold text-lg">{studentData.nome_disciplina}</p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-muted-foreground text-sm">Horário</Label>
-                    <p className="font-mono">{studentData.horario}</p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-muted-foreground text-sm">Local</Label>
-                    <p className="font-semibold">{studentData.local}</p>
-                  </div>
+              <CardContent className="p-6 grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label>Nome</Label>
+                  <p className="font-semibold">{studentData.nome_aluno}</p>
                 </div>
-              </CardContent>
-            </Card>
-          )}
 
-          {/* Empty State */}
-          {!studentData && !error && !loading && (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-                <Search className="mb-4 h-12 w-12 text-muted-foreground" />
-                <p className="text-muted-foreground">Nenhuma busca realizada. Digite um CPF acima para começar.</p>
+                <div>
+                  <Label>CPF</Label>
+                  <p className="font-mono">{studentData.cpf}</p>
+                </div>
+
+                <div>
+                  <Label>RA</Label>
+                  <p>{studentData.ra}</p>
+                </div>
+
+                <div>
+                  <Label>Campus</Label>
+                  <p>{studentData.campus}</p>
+                </div>
+
+                <div className="md:col-span-2">
+                  <Label>Disciplina</Label>
+                  <p>{studentData.nome_disciplina}</p>
+                </div>
+
+                <div>
+                  <Label>Horário</Label>
+                  <p>{studentData.horario}</p>
+                </div>
+
+                <div>
+                  <Label>Local</Label>
+                  <p>{studentData.local}</p>
+                </div>
               </CardContent>
             </Card>
           )}
